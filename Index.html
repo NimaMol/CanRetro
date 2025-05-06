@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Canvas Drawing Tool</title>
+  <style>
+    canvas {
+      border: 1px solid #ccc;
+      cursor: crosshair;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas" width="800" height="500"></canvas>
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const shapes = [];
+
+    canvas.addEventListener("click", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const r = 30;
+      shapes.push({ x, y, r });
+      draw();
+    });
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const shape of shapes) {
+        ctx.beginPath();
+        ctx.arc(shape.x, shape.y, shape.r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+  </script>
+</body>
+</html>
