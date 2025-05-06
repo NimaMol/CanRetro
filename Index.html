@@ -1,38 +1,161 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Canvas Drawing Tool</title>
+  <title>Mini Diagram Tool</title>
   <style>
+    body { font-family: sans-serif; }
+    #toolbar {
+      margin-bottom: 10px;
+    }
     canvas {
-      border: 1px solid #ccc;
+      border: 1px solid #aaa;
       cursor: crosshair;
     }
   </style>
 </head>
 <body>
-  <canvas id="canvas" width="800" height="500"></canvas>
-  <script>
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
-    const shapes = [];
 
-    canvas.addEventListener("click", (e) => {
+<div id="toolbar">
+  <button onclick="setMode('draw')">Draw</button>
+  <button onclick="setMode('select')">Select</button>
+  <button onclick="deleteSelected()">Delete</button>
+  <select id="lineStyle" onchange="changeLineStyle(this.value)">
+    <option value="solid">Solid</option>
+    <option value="dotted">Dotted</option>
+  </select>
+  <button onclick="exportShapes()">Export</button>
+  <input type="file" id="importFile" onchange="importShapes(event)" />
+</div>
+
+<canvas id="canvas" width="800" height="500"></canvas>
+
+<script>
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+  const shapes = [];
+  let selectedShape = null;
+  let dragOffset = { x: 0, y: 0 };
+  let mode = "draw";
+  let lineStyle = "solid";
+
+  function setMode(m) {
+    mode = m;
+    selectedShape = null;
+    draw();
+  }
+
+  function changeLineStyle(style) {
+    lineStyle = style;
+    draw();
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const shape of shapes) {
+      ctx.beginPath();
+      if (shape.style === "dotted") {
+        ctx.setLineDash([5, 5]);
+      } else {
+        ctx.setLineDash([]);
+      }
+      ctx.arc(shape.x, shape.y, shape.r, 0, Math.PI * 2);
+      ctx.strokeStyle = (shape === selectedShape) ? "red" : "black";
+      ctx.stroke();
+    }
+  }
+
+  function getShapeAt(x, y) {
+    return shapes.find(s =>
+      Math.hypot(s.x - x, s.y - y) < s.r
+    );
+  }
+
+  canvas.addEventListener("mousedown", e => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (mode === "draw") {
+      shapes.push({ x, y, r: 30, style: lineStyle });
+      draw();
+    } else if (mode === "select") {
+      const shape = getShapeAt(x, y);
+      if (shape) {
+        selectedShape = shape;
+        dragOffset.x = x - shape.x;
+        dragOffset.y = y - shape.y;
+      } else {
+        selectedShape = null;
+      }
+      draw();
+    }
+  });
+
+  canvas.addEventListener("mousemove", e => {
+    if (selectedShape && mode === "select") {
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-      const r = 30;
-      shapes.push({ x, y, r });
+      selectedShape.x = x - dragOffset.x;
+      selectedShape.y = y - dragOffset.y;
       draw();
-    });
+    }
+  });
 
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (const shape of shapes) {
-        ctx.beginPath();
-        ctx.arc(shape.x, shape.y, shape.r, 0, Math.PI * 2);
-        ctx.stroke();
+  canvas.addEventListener("mouseup", () => {
+    selectedShape = null;
+  });
+
+  // Copy/Paste
+  document.addEventListener("keydown", e => {
+    if (mode === "select" && selectedShape) {
+      if (e.ctrlKey && e.key === "c") {
+        selectedShape._copy = { ...selectedShape };
+      }
+      if (e.ctrlKey && e.key === "v" && selectedShape._copy) {
+        const copy = { ...selectedShape._copy, x: selectedShape.x + 40, y: selectedShape.y + 40 };
+        shapes.push(copy);
+        draw();
       }
     }
-  </script>
+  });
+
+  function deleteSelected() {
+    if (selectedShape) {
+      const index = shapes.indexOf(selectedShape);
+      if (index !== -1) {
+        shapes.splice(index, 1);
+        selectedShape = null;
+        draw();
+      }
+    }
+  }
+
+  function exportShapes() {
+    const data = JSON.stringify(shapes);
+    const blob = new Blob([data], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "diagram.json";
+    a.click();
+  }
+
+  function importShapes(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const imported = JSON.parse(e.target.result);
+      shapes.length = 0;
+      for (const shape of imported) {
+        shapes.push(shape);
+      }
+      draw();
+    };
+    reader.readAsText(file);
+  }
+</script>
+
 </body>
 </html>
