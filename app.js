@@ -23,32 +23,32 @@ function addText() {
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
   for (const shape of shapes) {
     ctx.beginPath();
     ctx.strokeStyle = shape.color || currentColor;
     ctx.fillStyle = shape.fill || "transparent";
-
+    
     if (shape.type === "circle") {
       ctx.arc(shape.x, shape.y, shape.radius, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
+      drawResizeHandle(shape); // Draw resize handle for circle
     } else if (shape.type === "rect") {
       ctx.rect(shape.x, shape.y, shape.width, shape.height);
       ctx.fill();
       ctx.stroke();
-    } else if (shape.type === "text") {
-      ctx.font = "16px Arial";
-      ctx.fillText(shape.text, shape.x, shape.y);
-    }
-
-    // Highlight the selected shape
-    if (shape === selectedShape) {
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = "red";
-      ctx.stroke();
-      ctx.lineWidth = 1;
+      drawResizeHandle(shape); // Draw resize handle for rectangle
     }
   }
+}
+
+function drawResizeHandle(shape) {
+  // Draw a resize handle at the bottom-right corner
+  ctx.beginPath();
+  ctx.rect(shape.x + shape.width - RESIZE_HANDLE_SIZE, shape.y + shape.height - RESIZE_HANDLE_SIZE, RESIZE_HANDLE_SIZE, RESIZE_HANDLE_SIZE);
+  ctx.fillStyle = 'black';
+  ctx.fill();
 }
 
 function getShapeAt(x, y) {
@@ -64,44 +64,47 @@ function getShapeAt(x, y) {
   });
 }
 
-canvas.addEventListener("mousedown", e => {
+canvas.addEventListener("mousedown", (e) => {
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
 
-  if (mode === "draw") {
-    shapes.push({ type: "circle", x, y, radius: 30, color: currentColor });
-    draw();
-  } else if (mode === "drawRect") {
-    shapes.push({ type: "rect", x, y, width: 100, height: 60, color: currentColor });
-    draw();
-  } else if (mode === "select") {
+  if (mode === "select") {
     const shape = getShapeAt(x, y);
     if (shape) {
       selectedShape = shape;
+      if (isOverResizeHandle(x, y, shape)) {
+        resizing = true;
+        resizeHandle = "bottom-right";  // Start resizing from the bottom-right corner
+      }
     } else {
       selectedShape = null;
     }
-    draw();
   }
 });
 
-canvas.addEventListener("mousemove", e => {
-  if (selectedShape && mode === "select") {
+canvas.addEventListener("mousemove", (e) => {
+  if (resizing && selectedShape) {
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    if (selectedShape.type === "circle") {
-      selectedShape.x = x;
-      selectedShape.y = y;
-    } else if (selectedShape.type === "rect") {
-      selectedShape.x = x - selectedShape.width / 2;
-      selectedShape.y = y - selectedShape.height / 2;
+    if (selectedShape.type === "rect" || selectedShape.type === "circle") {
+      // Resize the selected shape
+      if (selectedShape.type === "rect") {
+        selectedShape.width = x - selectedShape.x;
+        selectedShape.height = y - selectedShape.y;
+      } else if (selectedShape.type === "circle") {
+        selectedShape.radius = Math.hypot(x - selectedShape.x, y - selectedShape.y);
+      }
     }
-
-    draw();
+    draw();  // Redraw canvas after resizing
   }
+});
+
+canvas.addEventListener("mouseup", () => {
+  resizing = false;
+  resizeHandle = null;
 });
 
 canvas.addEventListener("mouseup", () => {
@@ -156,4 +159,55 @@ canvas.addEventListener("click", (e) => {
     }
     isDrawingText = false; // Stop adding text
   }
+
+  function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  for (const shape of shapes) {
+    ctx.beginPath();
+    ctx.strokeStyle = shape.color || currentColor;
+    ctx.fillStyle = shape.fill || "transparent";
+    
+    if (shape.type === "circle") {
+      ctx.arc(shape.x, shape.y, shape.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      drawResizeHandle(shape); // Draw resize handle for circle
+    } else if (shape.type === "rect") {
+      ctx.rect(shape.x, shape.y, shape.width, shape.height);
+      ctx.fill();
+      ctx.stroke();
+      drawResizeHandle(shape); // Draw resize handle for rectangle
+    }
+  }
+}
+
+function drawResizeHandle(shape) {
+  // Draw a resize handle at the bottom-right corner
+  ctx.beginPath();
+  ctx.rect(shape.x + shape.width - RESIZE_HANDLE_SIZE, shape.y + shape.height - RESIZE_HANDLE_SIZE, RESIZE_HANDLE_SIZE, RESIZE_HANDLE_SIZE);
+  ctx.fillStyle = 'black';
+  ctx.fill();
+}
+function getShapeAt(x, y) {
+  return shapes.find(s => {
+    if (s.type === "circle") {
+      return Math.hypot(s.x - x, s.y - y) < s.radius;
+    } else if (s.type === "rect") {
+      return x >= s.x && x <= s.x + s.width && y >= s.y && y <= s.y + s.height;
+    } else if (s.type === "text") {
+      return x >= s.x && x <= s.x + ctx.measureText(s.text).width && y >= s.y - 16 && y <= s.y;
+    }
+    return false;
+  });
+}
+
+function isOverResizeHandle(x, y, shape) {
+  return (
+    x >= shape.x + shape.width - RESIZE_HANDLE_SIZE &&
+    x <= shape.x + shape.width &&
+    y >= shape.y + shape.height - RESIZE_HANDLE_SIZE &&
+    y <= shape.y + shape.height
+  );
+}
 });
